@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/build-project-docs-new/schemas/progress.schema.json",
+  "title": "Progress State (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatorVersion",
+    "runId",
+    "runIdentity",
+    "mode",
+    "configSnapshot",
+    "stages",
+    "verification"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "generatorVersion": { "type": "string" },
+    "runId": { "type": "string", "minLength": 1 },
+    "runIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname", "pid", "startedAt"],
+      "properties": {
+        "agentId": { "type": "string" },
+        "hostname": { "type": "string", "minLength": 1 },
+        "pid": { "type": "integer", "minimum": 0 },
+        "startedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "mode": { "type": "string", "enum": ["docs", "new-project", "mixed"] },
+    "configSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configPriority", "outputRoot", "indexFile"],
+      "properties": {
+        "configPriority": {
+          "const": ["cli", "yaml", "env"]
+        },
+        "outputRoot": { "type": "string", "minLength": 1 },
+        "indexFile": { "type": "string", "minLength": 1 },
+        "extensions": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stageId", "status"],
+        "properties": {
+          "stageId": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "done", "skipped", "blocked"]
+          },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "finishedAt": { "type": "string", "format": "date-time" },
+          "notes": { "type": "string" },
+          "moduleTasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["moduleId", "status"],
+              "properties": {
+                "moduleId": { "type": "string", "minLength": 1 },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "running", "done", "skipped", "blocked"]
+                },
+                "artifacts": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "uniqueItems": true
+                },
+                "lastEvidenceHash": { "type": "string" },
+                "extensions": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "extensions": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resultsSummary"],
+      "properties": {
+        "lastRun": { "type": "string", "format": "date-time" },
+        "resultsSummary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["blockingFailures", "warnings"],
+          "properties": {
+            "blockingFailures": { "type": "integer", "minimum": 0 },
+            "warnings": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "extensions": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "extensions": { "type": "object", "additionalProperties": true }
+  }
+}

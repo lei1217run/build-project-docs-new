@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/build-project-docs-new/schemas/module.schema.json",
+  "title": "Module IR (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatorVersion", "generatedAt", "module", "api", "dataModel", "config", "pitfalls"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "generatorVersion": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["moduleId", "roots", "deps", "layerTags"],
+      "properties": {
+        "moduleId": { "type": "string", "minLength": 1 },
+        "roots": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "deps": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "layerTags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["foundation", "data", "business", "config", "package", "unknown"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hasPublicApi", "domains"],
+      "properties": {
+        "hasPublicApi": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string", "enum": ["unknown"] }
+          ]
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["domainId", "items"],
+            "properties": {
+              "domainId": { "type": "string", "minLength": 1 },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "signature", "name", "evidence"],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["rest", "tool", "grpc", "cli", "ws", "graphql"]
+                    },
+                    "signature": { "type": "string", "minLength": 1 },
+                    "name": { "type": "string", "minLength": 1 },
+                    "requestTypeRefs": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 },
+                      "uniqueItems": true
+                    },
+                    "responseTypeRefs": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 },
+                      "uniqueItems": true
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["code"],
+                        "properties": {
+                          "code": { "type": "string", "minLength": 1 },
+                          "name": { "type": "string" }
+                        }
+                      }
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": { "$ref": "#/$defs/evidenceRef" },
+                      "minItems": 1
+                    }
+                  }
+                }
+              },
+              "extensions": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "dataModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["types"],
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "kind"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "kind": {
+                "type": "string",
+                "enum": ["dto", "vo", "po", "entity", "params", "unknown"]
+              },
+              "evidence": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/evidenceRef" }
+              }
+            }
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "scope", "sensitive"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "scope": { "type": "string", "enum": ["env", "file", "runtime", "unknown"] },
+              "required": { "type": "boolean" },
+              "default": { "type": "string" },
+              "sensitive": { "type": "boolean" },
+              "evidence": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/evidenceRef" }
+              }
+            }
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "pitfalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "summary"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 },
+          "scope": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/evidenceRef" }
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["file", "symbol", "command", "pattern"] },
+        "path": { "type": "string", "minLength": 1 },
+        "symbol": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

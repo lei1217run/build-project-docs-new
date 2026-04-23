@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/build-project-docs-new/schemas/config.schema.json",
+  "title": "build-project-docs-new Config (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rootDir": { "type": "string", "default": ".claude" },
+        "indexFile": { "type": "string", "default": "CLAUDE.md" }
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultMode": { "type": "string", "enum": ["auto", "docs", "new-project"], "default": "auto" }
+      }
+    },
+    "incremental": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "excludeGlobs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [".git/**", "node_modules/**", "dist/**", "build/**"]
+        }
+      }
+    },
+    "changelog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "maxCommitsPerModule": { "type": "integer", "minimum": 1, "default": 10 }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "failOnWarnings": { "type": "boolean", "default": false }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "redactionMode": { "type": "string", "enum": ["block", "redact"], "default": "block" }
+      }
+    },
+    "configPriority": {
+      "const": ["cli", "yaml", "env"],
+      "default": ["cli", "yaml", "env"]
+    }
+  }
+}

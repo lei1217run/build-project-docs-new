@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/build-project-docs-new/schemas/project.schema.json",
+  "title": "Project IR (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatorVersion", "generatedAt", "project", "modules"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "generatorVersion": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "repoRoot", "build", "environments"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "repoRoot": { "type": "string", "minLength": 1 },
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tools"],
+          "properties": {
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["maven", "gradle", "npm", "pnpm", "yarn", "uv", "pip", "poetry", "cargo", "go", "unknown"]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        },
+        "environments": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["configPriority", "secretsPolicy"],
+          "properties": {
+            "configPriority": {
+              "const": ["cli", "yaml", "env"]
+            },
+            "secretsPolicy": {
+              "type": "string",
+              "enum": ["no_plaintext_secrets_in_docs"]
+            }
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["moduleId", "displayName", "roots", "layerTags", "deps", "signals"],
+        "properties": {
+          "moduleId": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string", "minLength": 1 },
+          "roots": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "layerTags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["foundation", "data", "business", "config", "package", "unknown"]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "deps": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "value"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "value": { "type": "string", "minLength": 1 },
+                "evidence": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/evidenceRef" }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["file", "symbol", "command", "pattern"] },
+        "path": { "type": "string", "minLength": 1 },
+        "symbol": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}
