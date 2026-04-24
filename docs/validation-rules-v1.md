@@ -17,6 +17,11 @@
 - V1-STRUCT-004：`CLAUDE.md` 必须链接到 `docs/_modules.md`
 - V1-STRUCT-005：模块 README 必须链接到目录下所有子 md（除 README/CHANGELOG）
 - V1-STRUCT-006：`docs/_modules.md` 必须存在并覆盖每个模块 `README.md`
+- V1-REPORT-001：`docs/_report.md` 必须存在
+- V1-REPORT-002：`CLAUDE.md` 必须链接到 `docs/_report.md`
+- V1-REPORT-003：`_report.md` 必须包含必填章节（项目定位/能力说明/代码示例/设计模式/Facts/附录）
+- V1-REPORT-004：`_report.md` 的 evidence 引用必须可解析且目标文件存在（禁止绝对路径与越界）
+- V1-REPORT-005：`_report.md` 中“代码示例/设计模式”若非 unknown，必须包含前缀与 evidence，且能定位到入口/结构证据
 - V1-API-001：若 IR `hasPublicApi=true`，则必须存在 `api-*.md`（至少 1 个）
 - V1-API-002：若 IR `hasPublicApi=true`，则必须存在 `data-model.md`
 - V1-API-003：文档模式：若 IR `hasPublicApi=true`，则必须存在 `pitfalls.md`

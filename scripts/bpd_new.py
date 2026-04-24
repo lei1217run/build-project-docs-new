@@ -17,6 +17,7 @@ import lib.evidence as evidence_mod
 from lib.ir_store import load_project_ir, load_module_ir, write_project_ir, write_module_ir, write_project_ir_payload
 from lib.progress import ProgressLockError, ProgressState, build_run_identity, progress_run_lock, write_progress
 from lib.renderer import render_module, render_project
+from lib.report import generate_report
 from lib.verifier import sanitize_output, verify_all
 from lib.git_tools import GitError, run_git
 from lib.registry import StrategyNotFoundError, resolve_discovery, resolve_evidence, resolve_extractor
@@ -455,6 +456,7 @@ def run_docs_mode(
         write_progress(docs_root, state)
 
         render_project(output_root, project_ir, config)
+        generate_report(repo_root, output_root, project_ir, config, mode="docs")
 
         state = state.with_stage_status("docs-5", "running")
         write_progress(docs_root, state)
@@ -771,6 +773,8 @@ def run_new_project_mode(
         state = state.with_stage_status("new-5", "done")
         write_progress(docs_root, state)
 
+        generate_report(repo_root, output_root, project_ir, config, mode="new-project")
+
         report = {"blockingFailures": 0, "warnings": 0, "blocking": [], "warning": []}
         if not skip_verify:
             selected_names = {str(mp.get("displayName", "")) for mp in module_plan if mp.get("displayName")}
@@ -819,6 +823,7 @@ def main() -> int:
     run_p.add_argument("--skip-verify", action="store_true")
     run_p.add_argument("--output-rootdir", default=None, dest="output_rootdir")
     run_p.add_argument("--output-indexfile", default=None, dest="output_indexfile")
+    run_p.add_argument("--report-depth", default=None, type=int, dest="report_depth")
     run_p.add_argument("--agent-id", default=None)
 
     verify_p = sub.add_parser("verify")

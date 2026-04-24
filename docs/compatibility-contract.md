@@ -17,6 +17,7 @@
 
 - `.claude/CLAUDE.md`
 - `.claude/docs/_modules.md`
+- `.claude/docs/_report.md`
 - `.claude/docs/{module}/README.md`
 - `.claude/docs/{module}/CHANGELOG.md`
 - 进度文件：
@@ -38,6 +39,7 @@
 ## 4. 链接约束（必须）
 
 - `CLAUDE.md` 必须链接到 `docs/_modules.md`（相对路径）
+- `CLAUDE.md` 必须链接到 `docs/_report.md`（相对路径）
 - `docs/_modules.md` 必须覆盖每个模块 `README.md` 的链接
 - 模块 `README.md` 必须链接到目录下所有子 md（除 README/CHANGELOG）
 - 禁止绝对路径链接

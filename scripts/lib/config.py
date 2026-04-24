@@ -12,6 +12,7 @@ def _default_config() -> dict[str, Any]:
         "mode": {"defaultMode": "auto"},
         "discovery": {"strategy": "default", "maxDepth": 1},
         "extractor": {"strategy": "default"},
+        "report": {"depth": 0},
         "incremental": {
             "enabled": True,
             "evidenceStrategy": "mtime-v1",
@@ -63,6 +64,7 @@ def _env_overrides(env: os._Environ[str]) -> dict[str, Any]:
     index_file = env.get("BPD_NEW_OUTPUT_INDEXFILE")
     redaction_mode = env.get("BPD_NEW_SECURITY_REDACTIONMODE")
     fail_on_warnings = env.get("BPD_NEW_VERIFICATION_FAILONWARNINGS")
+    report_depth = env.get("BPD_NEW_REPORT_DEPTH")
     if root_dir or index_file:
         out.setdefault("output", {})
         if root_dir:
@@ -75,6 +77,12 @@ def _env_overrides(env: os._Environ[str]) -> dict[str, Any]:
     if fail_on_warnings is not None:
         out.setdefault("verification", {})
         out["verification"]["failOnWarnings"] = fail_on_warnings.lower() in ["1", "true", "yes"]
+    if report_depth is not None:
+        try:
+            out.setdefault("report", {})
+            out["report"]["depth"] = int(report_depth)
+        except Exception:
+            pass
     return out
 
 
@@ -88,6 +96,10 @@ def _cli_overrides(cli_args: dict[str, Any]) -> dict[str, Any]:
             out["output"]["rootDir"] = root_dir
         if index_file:
             out["output"]["indexFile"] = index_file
+    report_depth = cli_args.get("report_depth")
+    if report_depth is not None:
+        out.setdefault("report", {})
+        out["report"]["depth"] = int(report_depth)
     return out
 
 

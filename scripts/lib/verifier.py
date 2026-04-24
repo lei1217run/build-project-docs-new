@@ -11,6 +11,7 @@ _LOW_CONF_SECRET_WORD_RE = re.compile(r"(?i)\b(password|passwd|token|secret|api[
 _PEM_PRIVATE_KEY_RE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]+?-----END [A-Z0-9 ]*PRIVATE KEY-----")
 _JWT_RE = re.compile(r"\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b")
 _PASSWORD_ASSIGN_RE = re.compile(r"(?i)\b(password|passwd|pwd)\s*[:=]\s*([^\s;]{4,})")
+_EVIDENCE_RE = re.compile(r"\[evidence:\s*([^\]]+?)\s*\]")
 
 
 def verify_all(
@@ -45,6 +46,8 @@ def verify_all(
         claude_links = set(_extract_local_link_targets("\n".join(lines)))
         if "docs/_modules.md" not in claude_links:
             blocking.append({"rule": "V1-STRUCT-004", "msg": "CLAUDE.md missing modules index link", "path": str(claude), "missing": "docs/_modules.md"})
+        if "docs/_report.md" not in claude_links:
+            blocking.append({"rule": "V1-REPORT-002", "msg": "CLAUDE.md missing report link", "path": str(claude), "missing": "docs/_report.md"})
         if mode == "new-project":
             if "docs/_task-list.md" not in claude_links:
                 blocking.append({"rule": "V1-NEW-001", "msg": "CLAUDE.md missing task-list link", "path": str(claude), "missing": "docs/_task-list.md"})
@@ -53,6 +56,12 @@ def verify_all(
 
     docs_root = output_root / "docs"
     modules_index = docs_root / "_modules.md"
+    report_md = docs_root / "_report.md"
+    if not report_md.exists():
+        blocking.append({"rule": "V1-REPORT-001", "msg": "report missing", "path": str(report_md)})
+    else:
+        _check_secrets_and_links(report_md, output_root, blocking, warnings, sec_mode)
+        _check_report(report_md, repo_root, output_root, blocking)
     if modules:
         if not modules_index.exists():
             blocking.append({"rule": "V1-STRUCT-006", "msg": "modules index missing", "path": str(modules_index)})
@@ -220,3 +229,83 @@ def _extract_local_link_targets(text: str) -> list[str]:
             continue
         out.append(target)
     return out
+
+
+def _check_report(report_md: Path, repo_root: Path, output_root: Path, blocking: list[dict[str, Any]]) -> None:
+    text = report_md.read_text(encoding="utf-8", errors="ignore")
+    required = ["## 项目定位", "## 能力说明", "## 代码示例", "## 设计模式", "## Facts/IR 汇总", "## 附录"]
+    for h in required:
+        if h not in text:
+            blocking.append({"rule": "V1-REPORT-003", "msg": "report missing section", "path": str(report_md), "missing": h})
+    for raw in _EVIDENCE_RE.findall(text):
+        p = raw.strip()
+        if not p or p.startswith("/"):
+            blocking.append({"rule": "V1-REPORT-004", "msg": "invalid evidence path", "path": str(report_md), "evidence": raw})
+            continue
+        if "://" in p:
+            blocking.append({"rule": "V1-REPORT-004", "msg": "invalid evidence path", "path": str(report_md), "evidence": raw})
+            continue
+        if ".." in p.split("/"):
+            blocking.append({"rule": "V1-REPORT-004", "msg": "invalid evidence path", "path": str(report_md), "evidence": raw})
+            continue
+        base = output_root if p.startswith("docs/_ir/") else repo_root
+        resolved = (base / p).resolve()
+        try:
+            resolved.relative_to(base.resolve())
+        except Exception:
+            blocking.append({"rule": "V1-REPORT-004", "msg": "evidence points outside root", "path": str(report_md), "evidence": raw})
+            continue
+        if not resolved.exists():
+            blocking.append({"rule": "V1-REPORT-004", "msg": "evidence target missing", "path": str(report_md), "evidence": raw})
+
+    _check_report_bullets(report_md, repo_root, output_root, blocking, section="代码示例", require_prefixes=["entrypoint:", "route:", "cli-command:"])
+    _check_report_bullets(report_md, repo_root, output_root, blocking, section="设计模式", require_prefixes=["pattern:"])
+
+
+def _check_report_bullets(
+    report_md: Path,
+    repo_root: Path,
+    output_root: Path,
+    blocking: list[dict[str, Any]],
+    *,
+    section: str,
+    require_prefixes: list[str],
+) -> None:
+    text = report_md.read_text(encoding="utf-8", errors="ignore").splitlines()
+    start = None
+    for i, ln in enumerate(text):
+        if ln.strip() == f"## {section}":
+            start = i + 1
+            break
+    if start is None:
+        return
+    end = len(text)
+    for j in range(start, len(text)):
+        if text[j].startswith("## "):
+            end = j
+            break
+    lines = [ln.rstrip() for ln in text[start:end] if ln.strip()]
+    for ln in lines:
+        if not ln.lstrip().startswith("- "):
+            continue
+        body = ln.strip()[2:].strip()
+        if "unknown" in body.lower():
+            continue
+        if not any(body.startswith(p) for p in require_prefixes):
+            blocking.append({"rule": "V1-REPORT-005", "msg": "report item missing required prefix", "path": str(report_md), "section": section, "line": ln.strip()})
+            continue
+        evs = _EVIDENCE_RE.findall(ln)
+        if not evs:
+            blocking.append({"rule": "V1-REPORT-005", "msg": "report item missing evidence", "path": str(report_md), "section": section, "line": ln.strip()})
+            continue
+        for raw in evs:
+            p = raw.strip()
+            base = output_root if p.startswith("docs/_ir/") else repo_root
+            resolved = (base / p).resolve()
+            try:
+                resolved.relative_to(base.resolve())
+            except Exception:
+                blocking.append({"rule": "V1-REPORT-005", "msg": "report item evidence points outside root", "path": str(report_md), "section": section, "evidence": raw, "line": ln.strip()})
+                continue
+            if not resolved.exists():
+                blocking.append({"rule": "V1-REPORT-005", "msg": "report item evidence target missing", "path": str(report_md), "section": section, "evidence": raw, "line": ln.strip()})

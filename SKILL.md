@@ -23,7 +23,7 @@ allowed-tools: Bash Read Write Edit Glob Grep
 
 | mode | 输入 | 主要产物 | verify 差异 |
 |------|------|----------|-------------|
-| docs | `--repo-root` | `.claude/CLAUDE.md`、`.claude/docs/{module}/...`、`_ir/*`、`_progress.json`、`_progress.md` | 校验 CLAUDE 链接、模块 README 约束、安全与链接规则 |
+| docs | `--repo-root` | `.claude/CLAUDE.md`、`.claude/docs/_report.md`、`.claude/docs/{module}/...`、`_ir/*`、`_progress.json`、`_progress.md` | 校验 CLAUDE 链接、报告/模块 README 约束、安全与链接规则 |
 | new-project | `--repo-root` + `--prd` + `--stack` | docs 模式产物 + `docs/_task-list.md` + PRD/Plan IR | 额外强制 task-list 存在且在 CLAUDE 可达；API 模块要求 `dev-checklist.md` |
 
 ## CLI 接口
@@ -55,6 +55,7 @@ allowed-tools: Bash Read Write Edit Glob Grep
 - `--skip-verify`（跳过末尾 verify）
 - `--output-rootdir <dir>`（覆盖输出根目录，默认 `.claude`）
 - `--output-indexfile <file>`（覆盖入口文件名，默认 `CLAUDE.md`）
+- `--report-depth <n>`（报告受控扩展扫描深度；默认 0 仅读 README/ARCHITECTURE/docs）
 - `--agent-id <id>`（写入 progress 的 runIdentity，便于多智能体追溯）
 
 ### verify
@@ -90,6 +91,7 @@ allowed-tools: Bash Read Write Edit Glob Grep
   - `BPD_NEW_OUTPUT_INDEXFILE`
   - `BPD_NEW_SECURITY_REDACTIONMODE`
   - `BPD_NEW_VERIFICATION_FAILONWARNINGS`
+  - `BPD_NEW_REPORT_DEPTH`
 
 ## 策略（静态注册的“插件化”）
 
@@ -134,6 +136,7 @@ manifest 覆盖 discovery（可选）：
 - 写入目录：`output.rootDir`（默认 `.claude`）
 - 关键文件：
   - `CLAUDE.md`
+  - `docs/_report.md`
   - `docs/_ir/*`、`docs/{module}/*.md`
   - `docs/_progress.json`
   - `docs/_progress.md`（与 `_progress.json` 同步生成；仅视图）

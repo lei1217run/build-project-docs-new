@@ -73,6 +73,7 @@ def render_project(output_root: Path, project_ir: dict[str, Any], config: dict[s
     claude_md_lines.append("")
     claude_md_lines.append("## 索引")
     claude_md_lines.append(f"- 模块索引：[{len(modules)} 个模块](docs/_modules.md)")
+    claude_md_lines.append("- [全维度报告](docs/_report.md)")
     if module_irs:
         claude_md_lines.append("- [facts 汇总](docs/_facts.md)")
     if mode == "new-project":

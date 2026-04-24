@@ -49,6 +49,13 @@
         "strategy": { "type": "string", "default": "default" }
       }
     },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "depth": { "type": "integer", "minimum": 0, "default": 0 }
+      }
+    },
     "changelog": {
       "type": "object",
       "additionalProperties": false,
