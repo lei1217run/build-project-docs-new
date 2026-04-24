@@ -25,7 +25,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["maven", "gradle", "npm", "pnpm", "yarn", "uv", "pip", "poetry", "cargo", "go", "unknown"]
+                "enum": ["maven", "gradle", "npm", "pnpm", "yarn", "uv", "pip", "poetry", "cargo", "go", "dotnet", "cmake", "unknown"]
               },
               "minItems": 1,
               "uniqueItems": true
@@ -104,6 +104,14 @@
         }
       }
     },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
     "extensions": {
       "type": "object",
       "additionalProperties": true
@@ -115,10 +123,19 @@
       "additionalProperties": false,
       "required": ["kind", "path"],
       "properties": {
-        "kind": { "type": "string", "enum": ["file", "symbol", "command", "pattern"] },
+        "kind": { "type": "string", "enum": ["file", "symbol", "command", "pattern", "config", "import", "export"] },
         "path": { "type": "string", "minLength": 1 },
         "symbol": { "type": "string" },
-        "note": { "type": "string" }
+        "note": { "type": "string" },
+        "range": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer", "minimum": 1 },
+            "end": { "type": "integer", "minimum": 1 }
+          }
+        }
       }
     }
   }

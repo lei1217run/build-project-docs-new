@@ -35,7 +35,33 @@ def _add_file(h: "hashlib._Hash", repo_root: Path, p: Path, ex_globs: set[str], 
         return
     if any(rel == g for g in ex_globs):
         return
-    if p.suffix.lower() not in [".py", ".js", ".ts", ".tsx", ".java", ".go", ".rs", ".proto", ".json", ".yaml", ".yml"]:
+    suffix = p.suffix.lower()
+    if suffix not in [
+        ".py",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".java",
+        ".go",
+        ".rs",
+        ".proto",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".cs",
+        ".csproj",
+        ".sln",
+        ".props",
+        ".targets",
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".h",
+        ".hpp",
+        ".hh",
+        ".ipp",
+        ".cmake",
+    ] and p.name not in ["CMakeLists.txt"]:
         return
     st = p.stat()
     h.update(rel.encode("utf-8"))
@@ -44,3 +70,10 @@ def _add_file(h: "hashlib._Hash", repo_root: Path, p: Path, ex_globs: set[str], 
     h.update(b"\n")
     h.update(str(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9))).encode("utf-8"))
     h.update(b"\n")
+
+
+from lib.registry import register_evidence
+
+
+register_evidence("mtime-v1")(compute_evidence_hash)
+register_evidence("default")(compute_evidence_hash)

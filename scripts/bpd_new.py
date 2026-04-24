@@ -10,15 +10,16 @@ from pathlib import Path
 from typing import Any
 
 from lib.config import load_effective_config
-from lib.discovery import discover_modules
+import lib.discovery as discovery_mod
 from lib.changelog import generate_and_update
-from lib.extractor import extract_module_ir
-from lib.evidence import compute_evidence_hash
+import lib.extractor as extractor_mod
+import lib.evidence as evidence_mod
 from lib.ir_store import load_project_ir, load_module_ir, write_project_ir, write_module_ir, write_project_ir_payload
 from lib.progress import ProgressLockError, ProgressState, build_run_identity, progress_run_lock, write_progress
 from lib.renderer import render_module, render_project
-from lib.verifier import verify_all
+from lib.verifier import sanitize_output, verify_all
 from lib.git_tools import GitError, run_git
+from lib.registry import StrategyNotFoundError, resolve_discovery, resolve_evidence, resolve_extractor
 from lib.new_project import (
     build_plan_from_prd,
     parse_prd_input,
@@ -163,6 +164,29 @@ def _doctor(repo_root: Path, config: dict[str, Any]) -> dict[str, Any]:
         git_binary = False
         git_reason = str(e)
 
+    requested_discovery = str(config.get("discovery", {}).get("strategy", "default"))
+    effective_discovery = requested_discovery
+    manifest_rel = None
+    manifest_exists = None
+    fallback_reason = None
+    discovery_error = None
+    if requested_discovery in ["manifest", "manifest-first"]:
+        try:
+            mp = discovery_mod.manifest_path(repo_root, config)
+            try:
+                manifest_rel = mp.relative_to(repo_root.resolve()).as_posix()
+            except Exception:
+                manifest_rel = mp.name
+            manifest_exists = mp.exists()
+            if requested_discovery == "manifest-first":
+                if manifest_exists:
+                    effective_discovery = "manifest"
+                else:
+                    effective_discovery = "default"
+                    fallback_reason = "manifest missing"
+        except discovery_mod.ManifestDiscoveryError as e:
+            discovery_error = {"errorCode": e.errorCode, "reason": e.reason, "hint": e.hint, "details": e.details}
+
     return {
         "ok": True,
         "repoRoot": str(repo_root),
@@ -171,6 +195,23 @@ def _doctor(repo_root: Path, config: dict[str, Any]) -> dict[str, Any]:
             "python": {"executable": sys.executable, "version": ".".join(map(str, sys.version_info[:3]))},
             "git": {"available": git_binary, "isRepo": git_repo, "reason": git_reason},
             "pyyaml": {"available": has_pyyaml},
+        },
+        "strategies": {
+            "discovery": str(config.get("discovery", {}).get("strategy", "default")),
+            "extractor": str(config.get("extractor", {}).get("strategy", "default")),
+            "evidence": str(config.get("incremental", {}).get("evidenceStrategy", "mtime-v1")),
+        },
+        "strategySelection": {
+            "discovery": {
+                "requested": requested_discovery,
+                "effective": effective_discovery,
+                "manifestPath": manifest_rel,
+                "manifestExists": manifest_exists,
+                "fallbackReason": fallback_reason,
+                "error": discovery_error,
+            },
+            "extractor": {"requested": str(config.get("extractor", {}).get("strategy", "default"))},
+            "evidence": {"requested": str(config.get("incremental", {}).get("evidenceStrategy", "mtime-v1"))},
         },
         "recommended": {"integrationProfile": str(config.get("integration", {}).get("profile", "generic"))},
     }
@@ -204,7 +245,53 @@ def run_docs_mode(
         state = state.with_run_identity(identity).with_extension("lockStrategy", {"strategy": "file-lock", "lockFile": "_progress.lock"})
         write_progress(docs_root, state)
 
-        modules = discover_modules(repo_root, config)
+        requested_discovery = str(config.get("discovery", {}).get("strategy", "default"))
+        effective_discovery = requested_discovery
+        manifest_rel = None
+        if requested_discovery in ["manifest", "manifest-first"]:
+            try:
+                mp = discovery_mod.manifest_path(repo_root, config)
+                try:
+                    manifest_rel = mp.relative_to(repo_root.resolve()).as_posix()
+                except Exception:
+                    manifest_rel = mp.name
+                if requested_discovery == "manifest-first":
+                    if mp.exists():
+                        effective_discovery = "manifest"
+                    else:
+                        effective_discovery = "default"
+                        state = state.with_stage_note("docs-1", f"discovery fallback: manifest missing ({manifest_rel}); using default discovery")
+            except discovery_mod.ManifestDiscoveryError as e:
+                raise BpdCliError(errorCode=e.errorCode, reason=e.reason, hint=e.hint, details=e.details) from e
+        state = state.with_extension(
+            "strategySelection",
+            {
+                "discovery": {"requested": requested_discovery, "effective": effective_discovery, "manifestPath": manifest_rel},
+                "extractor": {"requested": str(config.get("extractor", {}).get("strategy", "default"))},
+                "evidence": {"requested": str(config.get("incremental", {}).get("evidenceStrategy", "mtime-v1"))},
+            },
+        )
+        write_progress(docs_root, state)
+
+        discovery_name = effective_discovery
+        extractor_name = str(config.get("extractor", {}).get("strategy", "default"))
+        evidence_name = str(config.get("incremental", {}).get("evidenceStrategy", "mtime-v1"))
+        try:
+            discovery_fn = resolve_discovery(discovery_name)
+            extractor_fn = resolve_extractor(extractor_name)
+            evidence_fn = resolve_evidence(evidence_name)
+        except StrategyNotFoundError as e:
+            raise BpdCliError(
+                errorCode="STRATEGY_NOT_FOUND",
+                reason="strategy not found",
+                hint="use a registered strategy name or keep defaults",
+                details={"kind": e.kind, "name": e.name, "available": e.available},
+            ) from e
+
+        try:
+            modules = discovery_fn(repo_root, config)
+        except discovery_mod.ManifestDiscoveryError as e:
+            raise BpdCliError(errorCode=e.errorCode, reason=e.reason, hint=e.hint, details=e.details) from e
         selected = _select_modules(modules, module)
 
         if stage == "docs-8":
@@ -212,6 +299,7 @@ def run_docs_mode(
             if not project_ir:
                 raise BpdCliError(errorCode="PROJECT_IR_MISSING", reason="project IR missing", hint="run docs-1 or full run first")
             selected_names = {str(m.get("displayName", "")) for m in selected if m.get("displayName")}
+            sanitize_output(output_root, config)
             report = verify_all(repo_root, output_root, project_ir, config, mode="docs", only_modules=selected_names or None)
             state = state.with_verification(report)
             state = state.with_stage_status("docs-8", "done" if report["blockingFailures"] == 0 else "blocked")
@@ -315,7 +403,7 @@ def run_docs_mode(
         write_progress(docs_root, state)
         for m in selected:
             module_id = str(m["moduleId"])
-            evidence_hash = compute_evidence_hash(repo_root, list(m["roots"]), config)
+            evidence_hash = evidence_fn(repo_root, list(m["roots"]), config)
             evidence_by_id[module_id] = evidence_hash
             state = state.upsert_module_task("docs-2", module_id, status="done", artifacts=[], lastEvidenceHash=evidence_hash)
             write_progress(docs_root, state)
@@ -351,7 +439,7 @@ def run_docs_mode(
         write_progress(docs_root, state)
         for m in selected:
             module_id = str(m["moduleId"])
-            evidence_hash = evidence_by_id.get(module_id) or compute_evidence_hash(repo_root, list(m["roots"]), config)
+            evidence_hash = evidence_by_id.get(module_id) or evidence_fn(repo_root, list(m["roots"]), config)
             prev = state.get_module_task("docs-4", module_id) or {}
             last = prev.get("lastEvidenceHash")
             module_ir_path = output_root / "docs" / "_ir" / "modules" / f"{module_id}.json"
@@ -359,18 +447,20 @@ def run_docs_mode(
                 state = state.upsert_module_task("docs-4", module_id, status="skipped", artifacts=[f"_ir/modules/{module_id}.json"], lastEvidenceHash=evidence_hash)
                 write_progress(docs_root, state)
                 continue
-            module_ir = extract_module_ir(repo_root, m, config, evidence_hash=evidence_hash)
+            module_ir = extractor_fn(repo_root, m, config, evidence_hash=evidence_hash)
             write_module_ir(output_root, module_ir)
             state = state.upsert_module_task("docs-4", module_id, status="done", artifacts=[f"_ir/modules/{module_id}.json"], lastEvidenceHash=evidence_hash)
             write_progress(docs_root, state)
         state = state.with_stage_status("docs-4", "done")
         write_progress(docs_root, state)
 
+        render_project(output_root, project_ir, config)
+
         state = state.with_stage_status("docs-5", "running")
         write_progress(docs_root, state)
         for m in selected:
             module_id = str(m["moduleId"])
-            evidence_hash = evidence_by_id.get(module_id) or compute_evidence_hash(repo_root, list(m["roots"]), config)
+            evidence_hash = evidence_by_id.get(module_id) or evidence_fn(repo_root, list(m["roots"]), config)
             prev = state.get_module_task("docs-5", module_id) or {}
             last = prev.get("lastEvidenceHash")
             module_ir = load_module_ir(output_root, module_id)
@@ -381,6 +471,25 @@ def run_docs_mode(
             expected = ["README.md", "CHANGELOG.md"]
             if bool(module_ir.get("api", {}).get("hasPublicApi") is True):
                 expected.extend(["api-default.md", "data-model.md", "pitfalls.md"])
+            ps = module_ir.get("publicSurface", {}) if isinstance(module_ir.get("publicSurface"), dict) else {}
+            exports = ps.get("exports") if isinstance(ps.get("exports"), list) else []
+            entrypoints = ps.get("entrypoints") if isinstance(ps.get("entrypoints"), list) else []
+            key_files = ps.get("keyFiles") if isinstance(ps.get("keyFiles"), list) else []
+            types = ps.get("types") if isinstance(ps.get("types"), list) else []
+            if exports or entrypoints or key_files or types:
+                expected.append("facts-overview.md")
+            if exports:
+                expected.append("facts-exports.md")
+            if entrypoints:
+                expected.append("facts-entrypoints.md")
+            if key_files:
+                expected.append("facts-keyfiles.md")
+            if types:
+                expected.append("facts-types.md")
+            exts = module_ir.get("module", {}).get("extensions", {}) if isinstance(module_ir.get("module", {}).get("extensions"), dict) else {}
+            layer_evidence = exts.get("layerEvidence") if isinstance(exts.get("layerEvidence"), list) else []
+            if layer_evidence:
+                expected.append("facts-config.md")
             if (prev.get("status") in ["done", "skipped"]) and last == evidence_hash and all((module_dir / f).exists() for f in expected):
                 state = state.upsert_module_task("docs-5", module_id, status="skipped", artifacts=expected, lastEvidenceHash=evidence_hash)
                 write_progress(docs_root, state)
@@ -393,13 +502,17 @@ def run_docs_mode(
         state = state.with_stage_status("docs-5", "done")
         write_progress(docs_root, state)
 
+        render_project(output_root, project_ir, config)
+
         state = state.with_stage_status("docs-6", "skipped")
+        state = state.with_stage_note("docs-6", "deprecated: merged into docs-5 (facts-config.md); stage reserved for compatibility")
         write_progress(docs_root, state)
 
         if stage == "docs-5":
             report = {"blockingFailures": 0, "warnings": 0, "blocking": [], "warning": []}
             if not skip_verify:
                 selected_names = {str(m.get("displayName", "")) for m in selected if m.get("displayName")}
+                sanitize_output(output_root, config)
                 report = verify_all(repo_root, output_root, project_ir, config, mode="docs", only_modules=selected_names or None)
                 state = state.with_verification(report)
                 state = state.with_stage_status("docs-8", "done" if report["blockingFailures"] == 0 else "blocked")
@@ -472,6 +585,7 @@ def run_docs_mode(
         report = {"blockingFailures": 0, "warnings": 0, "blocking": [], "warning": []}
         if not skip_verify:
             selected_names = {str(m.get("displayName", "")) for m in selected if m.get("displayName")}
+            sanitize_output(output_root, config)
             report = verify_all(repo_root, output_root, project_ir, config, mode="docs", only_modules=selected_names or None)
             state = state.with_verification(report)
             state = state.with_stage_status("docs-8", "done" if report["blockingFailures"] == 0 else "blocked")
@@ -660,6 +774,7 @@ def run_new_project_mode(
         report = {"blockingFailures": 0, "warnings": 0, "blocking": [], "warning": []}
         if not skip_verify:
             selected_names = {str(mp.get("displayName", "")) for mp in module_plan if mp.get("displayName")}
+            sanitize_output(output_root, config)
             report = verify_all(repo_root, output_root, project_ir, config, mode="new-project", only_modules=selected_names or None)
             state = state.with_verification(report)
             state = state.with_stage_status("new-5", "done" if report["blockingFailures"] == 0 else "blocked")
@@ -767,6 +882,7 @@ def main() -> int:
                 selected = _select_modules(list(project_ir.get("modules", []) or []), str(args.module))
                 only_modules = {str(m.get("displayName", "")) for m in selected if m.get("displayName")}
 
+            sanitize_output(output_root, cfg)
             report = verify_all(repo_root, output_root, project_ir, cfg, mode=verify_mode, only_modules=only_modules)
             _print_json({"ok": report["blockingFailures"] == 0, "mode": verify_mode, "scope": {"module": getattr(args, "module", None)}, "report": report})
             return 0 if report["blockingFailures"] == 0 else 2

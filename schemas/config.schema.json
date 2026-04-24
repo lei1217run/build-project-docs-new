@@ -25,11 +25,28 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": true },
+        "evidenceStrategy": { "type": "string", "default": "mtime-v1" },
         "excludeGlobs": {
           "type": "array",
           "items": { "type": "string" },
           "default": [".git/**", "node_modules/**", "dist/**", "build/**"]
         }
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": { "type": "string", "default": "default" },
+        "manifestPath": { "type": "string", "default": "build-project-docs-new.manifest.json" },
+        "maxDepth": { "type": "integer", "minimum": 1, "default": 1 }
+      }
+    },
+    "extractor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strategy": { "type": "string", "default": "default" }
       }
     },
     "changelog": {
@@ -51,7 +68,21 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "redactionMode": { "type": "string", "enum": ["block", "redact"], "default": "block" }
+        "redactionMode": { "type": "string", "enum": ["block", "redact", "off"], "default": "block" }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lockLeaseSeconds": { "type": "integer", "minimum": 1, "default": 900 }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "type": "string", "default": "generic" }
       }
     },
     "configPriority": {

@@ -10,8 +10,11 @@ def _default_config() -> dict[str, Any]:
     return {
         "output": {"rootDir": ".claude", "indexFile": "CLAUDE.md"},
         "mode": {"defaultMode": "auto"},
+        "discovery": {"strategy": "default", "maxDepth": 1},
+        "extractor": {"strategy": "default"},
         "incremental": {
             "enabled": True,
+            "evidenceStrategy": "mtime-v1",
             "excludeGlobs": [".git/**", "node_modules/**", "dist/**", "build/**"],
         },
         "changelog": {"enabled": True, "maxCommitsPerModule": 10},

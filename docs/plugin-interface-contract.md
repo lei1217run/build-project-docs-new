@@ -15,6 +15,15 @@
 
 核心只消费插件输出并落入 IR；插件不负责渲染，也不负责配置优先级解析。
 
+## 运行时形态（v1）
+
+- 插件在 v1 的落地形态为“静态注册的可替换组件”（static registry），而非动态插件系统。
+- 可通过配置选择策略实现：
+  - `discovery.strategy`
+  - `extractor.strategy`
+  - `incremental.evidenceStrategy`
+- 若选择未知 strategy：必须失败并返回结构化错误码（`STRATEGY_NOT_FOUND`），不得静默 fallback。
+
 ## 错误模型
 
 - 统一：code/message/severity/recoverable/hints/evidence

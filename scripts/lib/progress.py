@@ -18,6 +18,9 @@ except Exception:
 def progress_path(docs_root: Path) -> Path:
     return docs_root / "_progress.json"
 
+def progress_md_path(docs_root: Path) -> Path:
+    return docs_root / "_progress.md"
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -27,6 +30,12 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(content, encoding="utf-8")
     os.replace(tmp, path)
 
 
@@ -353,4 +362,51 @@ class ProgressState:
 
 
 def write_progress(docs_root: Path, state: ProgressState) -> None:
-    _atomic_write_json(progress_path(docs_root), state.to_dict())
+    data = state.to_dict()
+    _atomic_write_json(progress_path(docs_root), data)
+    _atomic_write_text(progress_md_path(docs_root), _render_progress_md(data))
+
+def _render_progress_md(data: dict[str, Any]) -> str:
+    run_id = str(data.get("runId", ""))
+    mode = str(data.get("mode", ""))
+    run_identity = data.get("runIdentity", {}) if isinstance(data.get("runIdentity"), dict) else {}
+    started_at = str(run_identity.get("startedAt") or "")
+    agent_id = str(run_identity.get("agentId") or "")
+    verification = data.get("verification", {}) if isinstance(data.get("verification"), dict) else {}
+    v_summary = verification.get("resultsSummary", {}) if isinstance(verification.get("resultsSummary"), dict) else {}
+    v_last_run = str(verification.get("lastRun") or "")
+    blocking = int(v_summary.get("blockingFailures", 0) or 0)
+    warnings = int(v_summary.get("warnings", 0) or 0)
+    stages = data.get("stages", []) if isinstance(data.get("stages"), list) else []
+
+    lines: list[str] = []
+    lines.append("# Progress")
+    lines.append("")
+    lines.append(f"- runId: {run_id}")
+    lines.append(f"- mode: {mode}")
+    if started_at:
+        lines.append(f"- startedAt: {started_at}")
+    if agent_id:
+        lines.append(f"- agentId: {agent_id}")
+    if v_last_run:
+        lines.append(f"- verification.lastRun: {v_last_run}")
+    lines.append(f"- verification.summary: blockingFailures={blocking}, warnings={warnings}")
+    lines.append("- details: see _progress.json")
+    lines.append("")
+    lines.append("## Stages")
+    lines.append("")
+    lines.append("| stageId | status | startedAt | finishedAt | notes |")
+    lines.append("|---|---|---|---|---|")
+    for s in stages:
+        if not isinstance(s, dict):
+            continue
+        sid = str(s.get("stageId", ""))
+        status = str(s.get("status", ""))
+        s_started = str(s.get("startedAt") or "")
+        s_finished = str(s.get("finishedAt") or "")
+        note = str(s.get("notes") or "")
+        note = note.replace("\n", " ").strip()
+        lines.append(f"| {sid} | {status} | {s_started} | {s_finished} | {note} |")
+    lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"

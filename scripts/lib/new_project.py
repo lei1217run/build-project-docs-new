@@ -151,6 +151,7 @@ def _stack_check_item(stack: str) -> str:
 def plan_to_project_ir(plan: dict[str, Any]) -> dict[str, Any]:
     modules = []
     is_frontend = plan["stack"] in ["react", "vue"]
+    layer_hints = ["frontend"] if is_frontend else ["business"]
     for m in plan["moduleDocsPlan"]:
         name = m["displayName"]
         modules.append(
@@ -158,10 +159,10 @@ def plan_to_project_ir(plan: dict[str, Any]) -> dict[str, Any]:
                 "moduleId": m["moduleId"],
                 "displayName": name,
                 "roots": [name],
-                "layerTags": ["frontend"] if is_frontend else ["business"],
+                "layerTags": ["unknown"],
                 "deps": [],
                 "signals": [{"name": "template.stack", "value": plan["stack"]}],
-                "extensions": {"plannedOnly": True},
+                "extensions": {"plannedOnly": True, "layerHints": layer_hints},
             }
         )
 
@@ -182,6 +183,8 @@ def plan_to_project_ir(plan: dict[str, Any]) -> dict[str, Any]:
 
 
 def plan_to_module_ir(plan: dict[str, Any], module_plan: dict[str, Any]) -> dict[str, Any]:
+    is_frontend = plan["stack"] in ["react", "vue"]
+    layer_hints = ["frontend"] if is_frontend else ["business"]
     return {
         "schemaVersion": "1.0.0",
         "generatorVersion": "0.1",
@@ -190,8 +193,8 @@ def plan_to_module_ir(plan: dict[str, Any], module_plan: dict[str, Any]) -> dict
             "moduleId": module_plan["moduleId"],
             "roots": [module_plan["displayName"]],
             "deps": [],
-            "layerTags": ["business"],
-            "extensions": {"plannedOnly": True},
+            "layerTags": ["unknown"],
+            "extensions": {"plannedOnly": True, "layerHints": layer_hints},
         },
         "api": {
             "hasPublicApi": True,
